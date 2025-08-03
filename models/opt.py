@@ -268,7 +268,6 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
         differentiable: bool = False,
         fused: Optional[bool] = None,
     ):
-        # 参数验证
         if isinstance(lr, Tensor) and lr.numel() != 1:
             raise ValueError("Tensor lr must be 1-element")
         if lr < 0.0:
@@ -379,3 +378,4 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
                     momentum_buffer_list.append(state.get("momentum_buffer"))
 
         return has_sparse_grad
+

@@ -261,7 +261,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
         dampening: float = 0,
         weight_decay: float = 0,
         nesterov: bool = False,
-        decay_rate: float = 0.1,  # 新增衰减率参数
+        decay_rate: float = 0.1,
         *,
         maximize: bool = False,
         foreach: Optional[bool] = None,
@@ -284,7 +284,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
             dampening=dampening,
             weight_decay=weight_decay,
             nesterov=nesterov,
-            decay_rate=decay_rate,  # 保存衰减率
+            decay_rate=decay_rate,
             maximize=maximize,
             foreach=foreach,
             differentiable=differentiable,
@@ -295,13 +295,12 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
 
-        # 初始化动量缓冲区
         self.momentum_buffers = [torch.zeros_like(param.data, requires_grad=False) for param in params]
     def _compute_gradient_diversity(self, group):
         n = 0
         mean = 0.0
         M2 = 0.0
-        total_sq_norm = 0.0  # 范数平方和
+        total_sq_norm = 0.0
 
         for param in group["params"]:
             if param.grad is None:
@@ -310,23 +309,18 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
             if torch.isnan(grad).any() or torch.isinf(grad).any():
                 raise ValueError("Gradient contains NaN or Inf.")
 
-            x = grad.norm().item()  # 标量范数
-            total_sq_norm += x ** 2  # 累加范数平方
-
-            # Welford算法更新
+            x = grad.norm().item()
+            total_sq_norm += x ** 2
             n += 1
             delta = x - mean
             mean += delta / n
-            M2 += delta * (x - mean)  # 注意：使用更新后的mean
-
-        # 计算方差和多样性
+            M2 += delta * (x - mean)
         variance = M2 / (n - 1) if n > 1 else 0.0
         diversity = variance / (total_sq_norm / (n*n)) if n > 0 and total_sq_norm > 0 else 0.0
-        # 使用线性变换确保 diversity 大于 1
         if diversity <= 1:
-            diversity = 1 + (1 - diversity)  # 拉伸到大于1的范围
+            diversity = 1 + (1 - diversity)
         diversity = 1 + diversity
-        #print(diversity)
+
         return diversity
 
     def step(self, closure=None):
@@ -340,39 +334,26 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
 
             has_sparse_grad = self._init_group(group, params, grads, momentum_buffer_list)
 
-            # 确保 momentum_buffers 的长度与 params 一致
             if len(self.momentum_buffers) != len(params):
                 self.momentum_buffers = [torch.zeros_like(param.data, requires_grad=False) for param in params]
 
             try:
-                # 计算当前的梯度多样性
                 current_diversity = self._compute_gradient_diversity(group)
 
-                # 检测梯度异常（例如，梯度爆炸）
                 gradient_exploding_condition = any(param.grad.norm() > 1e5 for param in params if param.grad is not None)
-
-                # 如果检测到梯度爆炸，进行指数衰减学习率
                 if gradient_exploding_condition:
                     for param_group in self.param_groups:
-                        param_group['lr'] *= group['decay_rate']  # 指数衰减学习率
+                        param_group['lr'] *= group['decay_rate']
 
-                # 更新参数
                 for i, param in enumerate(params):
                     if param.grad is None:
                         continue
-
-                    # 应用权重衰减
                     if group["weight_decay"] != 0:
                         param.data.mul_(1 - group["weight_decay"])
-
-                    # 更新动量缓冲区
                     self.momentum_buffers[i] = group["momentum"] * self.momentum_buffers[i] + param.grad
-
-                    # 根据梯度多样性调整学习率
                     adjusted_lr = group["lr"] / current_diversity  if current_diversity > 0 else group["lr"]
                     param.data.add_(self.momentum_buffers[i], alpha=-adjusted_lr)
 
-                    # 更新动量缓冲区到状态
                 if group["momentum"] != 0:
                     for p, momentum_buffer in zip(params, momentum_buffer_list):
                         state = self.state[p]

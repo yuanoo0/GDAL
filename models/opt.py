@@ -316,10 +316,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
             M2 += delta * (x - mean)
         variance = M2 / (n - 1) if n > 1 else 0.0
         diversity = variance / (total_sq_norm / (n*n)) if n > 0 and total_sq_norm > 0 else 0.0
-        if diversity <= 1:
-            diversity = 1 + (1 - diversity)
-        diversity = 1 + diversity
-
+        
         return diversity
 
     def step(self, closure=None):
@@ -378,4 +375,5 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
                     momentum_buffer_list.append(state.get("momentum_buffer"))
 
         return has_sparse_grad
+
 

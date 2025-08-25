@@ -252,7 +252,7 @@ class AdamW(Optimizer):
         return loss
 
 
-class GDSGD(Optimizer):  # 继承自 Optimizer
+class GDSGD(Optimizer): 
     def __init__(
         self,
         params,
@@ -268,6 +268,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
         differentiable: bool = False,
         fused: Optional[bool] = None,
     ):
+
         if isinstance(lr, Tensor) and lr.numel() != 1:
             raise ValueError("Tensor lr must be 1-element")
         if lr < 0.0:
@@ -315,8 +316,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
             mean += delta / n
             M2 += delta * (x - mean)
         variance = M2 / (n - 1) if n > 1 else 0.0
-        diversity = variance / (total_sq_norm / (n*n)) if n > 0 and total_sq_norm > 0 else 0.0
-        
+        diversity = (variance * (n*n))/ total_sq_norm  if n > 0 and total_sq_norm > 0 else 0.0
         return diversity
 
     def step(self, closure=None):
@@ -337,9 +337,9 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
                 current_diversity = self._compute_gradient_diversity(group)
 
                 gradient_exploding_condition = any(param.grad.norm() > 1e5 for param in params if param.grad is not None)
+                current_lr_factor = 1.0
                 if gradient_exploding_condition:
-                    for param_group in self.param_groups:
-                        param_group['lr'] *= group['decay_rate']
+                    current_lr_factor = group['decay_rate']
 
                 for i, param in enumerate(params):
                     if param.grad is None:
@@ -347,7 +347,7 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
                     if group["weight_decay"] != 0:
                         param.data.mul_(1 - group["weight_decay"])
                     self.momentum_buffers[i] = group["momentum"] * self.momentum_buffers[i] + param.grad
-                    adjusted_lr = group["lr"] / current_diversity  if current_diversity > 0 else group["lr"]
+                    adjusted_lr = (group["lr"] * current_lr_factor) / current_diversity if current_diversity > 0 else group["lr"]
                     param.data.add_(self.momentum_buffers[i], alpha=-adjusted_lr)
 
                 if group["momentum"] != 0:
@@ -375,5 +375,6 @@ class GDSGD(Optimizer):  # 继承自 Optimizer
                     momentum_buffer_list.append(state.get("momentum_buffer"))
 
         return has_sparse_grad
+
 
 

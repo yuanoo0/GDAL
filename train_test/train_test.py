@@ -95,14 +95,15 @@ def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss):
     return direc
 
 
-def train(models, criterion, optimizers, dataloaders, num_epochs, cycle, epoch_loss):
+def train(models, criterion, optimizers, schedulers,  dataloaders, num_epochs, cycle, epoch_loss):
     print('>> Training the model...')
     best_acc = 0.
     direc = None
 
     for epoch in range(num_epochs):
-        direc = train_epoch(models, criterion, optimizers, dataloaders, epoch,epoch_loss)
-
+        direc = train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss)
+        schedulers['backbone'].step()
+        schedulers['module'].step()
         # Save a checkpoint
         if epoch % 20 == 0 or epoch == 199:
             acc = test(models, dataloaders, 'test')
